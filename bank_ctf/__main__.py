@@ -73,13 +73,26 @@ def make_inflow_model(cfg: dict[str, Any]) -> Pipeline:
         if unknown:
             raise ValueError(f"unsupported inflow params: {sorted(unknown)}")
         estimator = Ridge(random_state=seed, **params)
+    elif kind == "catboost":
+        allowed = {"iterations", "learning_rate", "depth", "l2_leaf_reg", "border_count"}
+        unknown = set(params) - allowed
+        if unknown:
+            raise ValueError(f"unsupported catboost params: {sorted(unknown)}")
+        estimator = CatBoostRegressor(random_state=seed, verbose=0, **params)
     else:
         raise ValueError(f"unsupported inflow model kind: {kind}")
-
+    else:
+        raise ValueError(f"unsupported inflow model kind: {kind}")
+    
     preprocessor = ColumnTransformer([
         ("num", Pipeline([("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]), NUMERIC),
         ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))]), CATEGORICAL),
     ])
+    if kind == "catboost":
+        preprocessor = ColumnTransformer([
+            ("num", Pipeline([("imputer", SimpleImputer(strategy="median"))]), NUMERIC),
+            ("cat", Pipeline([("imputer", SimpleImputer(strategy="constant", fill_value="missing"))]), CATEGORICAL),
+        ])
     return Pipeline([("preprocess", preprocessor), ("model", estimator)])
 
 
